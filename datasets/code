@@ -1,0 +1,144 @@
+import csv
+import random
+import datetime
+from faker import Faker
+
+# Initialize Faker
+fake = Faker()
+
+# Configuration
+ROWS_PER_FILE = 1200
+FILES = ['customers.csv', 'products.csv', 'orders.csv', 'order_details.csv', 'payments.csv']
+
+def random_date_string():
+    """Generates dates in inconsistent formats (Messy Data)"""
+    date = fake.date_between(start_date='-2y', end_date='today')
+    format_choice = random.choice(['%Y-%m-%d', '%d/%m/%Y', '%m-%d-%Y', '%d-%b-%Y'])
+    return date.strftime(format_choice)
+
+def introduce_mess(value, chance=0.1):
+    """Randomly corrupts data with NULLs, wrong types, or typos"""
+    r = random.random()
+    if r < chance: # 10% chance to be NULL
+        return ""
+    elif r < chance + 0.05: # 5% chance to be garbage text
+        return "ERROR_DATA"
+    return value
+
+print(f"Generating {ROWS_PER_FILE} rows per file...")
+
+# ==========================================
+# 1. GENERATE CUSTOMERS (Messy: Duplicates, Bad Emails, Mixed Case)
+# ==========================================
+customer_ids = []
+with open('customers.csv', 'w', newline='', encoding='utf-8') as f:
+    writer = csv.writer(f)
+    writer.writerow(['customer_id', 'name', 'email', 'phone', 'join_date'])
+    
+    for i in range(1, ROWS_PER_FILE + 1):
+        # Intentional duplicate ID every 50 rows
+        cust_id = i if i % 50 != 0 else i - 1
+        customer_ids.append(cust_id)
+        
+        # Messy Name: Randomly upper/lower case
+        name = fake.name()
+        if random.choice([True, False]):
+            name = name.lower() if random.choice([True, False]) else name.upper()
+            
+        # Messy Email: Sometimes missing
+        email = introduce_mess(fake.email())
+        
+        # Messy Phone: Inconsistent formats
+        phone = random.choice([fake.phone_number(), fake.msisdn(), "(555) 000-0000"])
+        
+        writer.writerow([cust_id, name, email, phone, random_date_string()])
+
+print(" - customers.csv created.")
+
+# ==========================================
+# 2. GENERATE PRODUCTS (Messy: Text in Price, Negative Stock)
+# ==========================================
+product_ids = []
+with open('products.csv', 'w', newline='', encoding='utf-8') as f:
+    writer = csv.writer(f)
+    writer.writerow(['product_id', 'product_name', 'category', 'price', 'stock_qty'])
+    
+    for i in range(1, ROWS_PER_FILE + 1):
+        prod_id = f"P-{i}"
+        product_ids.append(prod_id)
+        
+        # Messy Price: Sometimes includes '$' making it text
+        price = round(random.uniform(10, 500), 2)
+        if random.random() < 0.1:
+            price = f"${price}" 
+        
+        # Messy Stock: Impossible negative numbers
+        stock = random.randint(-20, 100) 
+        
+        writer.writerow([prod_id, fake.bs(), fake.word(), price, stock])
+
+print(" - products.csv created.")
+
+# ==========================================
+# 3. GENERATE ORDERS (Messy: Orphaned Customer IDs, Bad Dates)
+# ==========================================
+order_ids = []
+with open('orders.csv', 'w', newline='', encoding='utf-8') as f:
+    writer = csv.writer(f)
+    writer.writerow(['order_id', 'customer_id', 'order_date', 'status'])
+    
+    for i in range(1, ROWS_PER_FILE + 1):
+        order_ids.append(i)
+        
+        # Messy Foreign Key: 5% of orders belong to a customer that doesn't exist (ID 99999)
+        cust_id = random.choice(customer_ids)
+        if random.random() < 0.05:
+            cust_id = 99999 
+            
+        status = random.choice(['Shipped', 'Pending', 'Cancelled', 'Delivered', 'processing']) # Inconsistent case
+        
+        writer.writerow([i, cust_id, random_date_string(), status])
+
+print(" - orders.csv created.")
+
+# ==========================================
+# 4. GENERATE ORDER DETAILS (Messy: Duplicates, Null Quantity)
+# ==========================================
+with open('order_details.csv', 'w', newline='', encoding='utf-8') as f:
+    writer = csv.writer(f)
+    writer.writerow(['detail_id', 'order_id', 'product_id', 'quantity'])
+    
+    for i in range(1, ROWS_PER_FILE + 1):
+        # Messy Logic: Randomly assign products to orders
+        o_id = random.choice(order_ids)
+        p_id = random.choice(product_ids)
+        
+        # Messy Quantity: Sometimes NULL or 0
+        qty = introduce_mess(random.randint(1, 10))
+        
+        writer.writerow([i, o_id, p_id, qty])
+
+print(" - order_details.csv created.")
+
+# ==========================================
+# 5. GENERATE PAYMENTS (Messy: Text in Amount, Unmatched Orders)
+# ==========================================
+with open('payments.csv', 'w', newline='', encoding='utf-8') as f:
+    writer = csv.writer(f)
+    writer.writerow(['payment_id', 'order_id', 'payment_method', 'amount'])
+    
+    for i in range(1, ROWS_PER_FILE + 1):
+        # Messy Foreign Key: Payment for an order that might not exist
+        o_id = random.choice(order_ids) if random.random() > 0.05 else 88888
+        
+        method = random.choice(['Credit Card', 'PayPal', 'Bank Transfer', 'CASH', 'check'])
+        
+        # Messy Amount: Sometimes negative
+        amt = round(random.uniform(10, 1000), 2)
+        if random.random() < 0.05:
+            amt = amt * -1
+            
+        writer.writerow([i, o_id, method, amt])
+
+print(" - payments.csv created.")
+print("Done! Check your folder for the files.")
