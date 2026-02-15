@@ -1,0 +1,64 @@
+-- analysis
+
+SELECT * FROM V_CUSTOMERS
+
+
+
+-- MONTHLY SALES 
+CREATE VIEW V_MONTH AS 
+SELECT datename(month , order_date) month_name ,
+category,
+row_number() over(order by sum(amount) desc) ranking, 
+ COUNT(category) category_count ,
+  sum(amount) sum_amount  , 
+  sum(price) category_price, 
+sum(quantity) sum_quantity ,
+max(amount) max_amount , 
+min(amount) min_amount , 
+avg(amount) avg_month, 
+count(payment_method) counting_payment_method  from V_CUSTOMERS
+group by datename(month , order_date)  , category
+
+--checking join _date 
+
+select join_date from V_CUSTOMERS
+where join_date > '2199-12-14' and join_date < '1230-12-14'
+
+
+--Calculate total revenue per category.
+
+
+create view V_REVENUE AS
+(
+select category , sum(amount) category_amount  , sum(price) category_price, 
+sum(quantity) sum_quantity , count(payment_method) counting_payment_method  
+
+from V_CUSTOMERS
+group by category
+)
+
+drop VIEW V_MONTH
+
+
+SELECT datename(month , order_date) month_name ,
+category,
+row_number() over(order by sum(amount) desc) ranking, 
+ COUNT(category) category_count ,
+  sum(amount) sum_amount  , 
+  sum(price) category_price, 
+sum(quantity) sum_quantity ,
+max(amount) max_amount , 
+min(amount) min_amount , 
+avg(amount) avg_month, 
+count(payment_method) counting_payment_method  from V_CUSTOMERS
+group by datename(month , order_date)  , category
+order by  row_number() over(order by sum(amount) desc) asc
+
+
+create view V_DIFF AS
+
+select join_date , order_date , 
+abs(datediff(month , order_date, join_date)) day_month,
+abs(datediff(year , order_date, join_date)) day_year,
+abs(datediff(weekday , order_date, join_date) )day_day
+from V_CUSTOMERS
