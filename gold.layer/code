@@ -1,0 +1,49 @@
+
+create view V_CUSTOMERS as 
+(
+    SELECT 
+    sc.customer_id,
+    sc.name,
+    sc.email,
+    sc.join_date,
+    sc.phone,
+    so.order_date,
+    so.order_id,
+    so.[status],
+    sod.detail_id,
+    sod.product_id,
+    sps.category,
+    sps.product_name,
+    CASE 
+        WHEN sp.amount IS NULL THEN (sps.price * sod.quantity) * 1.014
+        ELSE sp.amount 
+    END AS amount,
+
+    
+    CASE 
+        WHEN sps.price IS NULL THEN cast(left(sp.amount / NULLIF(sod.quantity, 0), 1) as int)
+        ELSE sps.price
+    END AS price,
+  
+  
+    CASE 
+        WHEN sod.quantity IS NULL THEN ROUND(sp.amount / NULLIF(sps.price, 0), 0)
+        ELSE sod.quantity
+    END AS quantity,
+    sp.payment_id,
+    sp.payment_method
+    FROM  silver.orders so
+    left join silver.customers sc on
+    sc.customer_id = so.customer_id
+    left join silver.order_detail sod on
+    so.order_id = sod.order_id
+    left join silver.payments sp ON
+    so.order_id = sp.order_id
+    left join silver.products sps ON
+    sod.product_id =  sps.product_id
+)
+
+
+
+
+select * from V_CUSTOMERS
