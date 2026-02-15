@@ -1,0 +1,190 @@
+CREATE OR ALTER PROCEDURE silver.load_silver
+AS
+BEGIN
+  
+    DECLARE @start_time DATETIME, @end_time DATETIME 
+
+   
+        PRINT '===================================================';
+        PRINT '   STARTING SILVER LAYER DATA LOAD';
+        PRINT '===================================================';
+
+        -- --------------------------------------------------------
+        -- LOAD: CUSTOMERS
+        -- --------------------------------------------------------
+        SET @start_time = GETDATE();
+        PRINT '>> Loading Table: silver.customers';
+
+	print ' >> truncate table silver.customers'
+truncate table silver.customers
+
+print'>>  inserting data customers'
+insert into silver.customers
+(
+    customer_id,
+    name , 
+    email,
+    phone,
+    join_date
+)
+
+select 
+customer_id,
+case
+    when name = upper(name) then  upper(left(name , 1)) + lower(substring(name , 2, len(name)))
+    when  name = lower(name) then  upper(left(name , 1)) + lower(substring(name , 2, len(name)))
+    else name 
+end name ,
+coalesce(email , 'n/a') email,
+REPLACE(TRANSLATE(phone, '-().x+ ', '#######'), '#', '') phone ,
+COALESCE(
+            TRY_CONVERT(DATE, join_date, 101), -- Handles MM-DD-YYYY or MM/DD/YYYY
+            TRY_CONVERT(DATE, join_date, 103), -- Handles DD/MM/YYYY
+            TRY_CONVERT(DATE, join_date, 105), -- Handles DD-MM-YYYY
+            TRY_CONVERT(DATE, join_date, 120), -- Handles YYYY-MM-DD
+            TRY_PARSE(join_date AS DATE)       -- Handles named months like "21-May-2025"
+      
+    ) AS join_date
+
+     
+
+from
+(
+    select * , 
+    row_number() over( partition by customer_id order by join_date desc ) s_no
+    from bronze.customers
+)t
+where t.s_no = 1
+
+ SET @end_time = GETDATE();
+        PRINT '   - Success. Duration: ' + CAST(DATEDIFF(SECOND, @start_time, @end_time) AS VARCHAR) + ' seconds';
+
+
+
+
+
+ SET @start_time = GETDATE();
+print('>> truncate table silver.orders')
+truncate table silver.orders
+print('>> inserting data orders')
+insert into silver.orders
+(
+    order_id,
+    customer_id , 
+    order_date,
+    status
+)
+
+select 
+order_id , 
+customer_id , 
+COALESCE(
+            TRY_CONVERT(DATE, order_date, 101), -- Handles MM-DD-YYYY or MM/DD/YYYY
+            TRY_CONVERT(DATE, order_date, 103), -- Handles DD/MM/YYYY
+            TRY_CONVERT(DATE, order_date, 105), -- Handles DD-MM-YYYY
+            TRY_CONVERT(DATE, order_date, 120) -- Handles YYYY-MM-DD
+            
+      
+    ) AS order_date,
+    
+status
+from bronze.orders
+ SET @end_time = GETDATE();
+        PRINT '   - Success. Duration: ' + CAST(DATEDIFF(SECOND, @start_time, @end_time) AS VARCHAR) + ' seconds';
+
+
+
+ SET @start_time = GETDATE();
+print('>> truncate table silver.orders')
+
+
+truncate table silver.order_detail
+print('>> inserting data order_detail')
+
+insert into silver.order_detail
+(
+    detail_id , 
+    order_id ,
+    product_id,
+    quantity
+)
+select 
+detail_id , 
+order_id ,
+product_id,
+case 
+    when quantity = 'ERROR_DATA' then NULL
+    else quantity
+end quantity
+from bronze.order_detail
+
+ SET @end_time = GETDATE();
+        PRINT '   - Success. Duration: ' + CAST(DATEDIFF(SECOND, @start_time, @end_time) AS VARCHAR) + ' seconds';
+
+
+
+ SET @start_time = GETDATE();
+print('>> truncate table silver.paymenst')
+
+
+truncate table silver.payments
+print('>> inserting data payments')
+insert into silver.payments
+(
+    payment_id , 
+    order_id , 
+    payment_method,
+    amount
+
+)
+
+SELECT
+
+payment_id,
+order_id,
+case 
+    when payment_method = 'CASH' then upper(left(payment_method , 1)) + lower(substring(payment_method , 2, len(payment_method)))
+    when payment_method = 'check' then upper(left(payment_method , 1)) + lower(substring(payment_method , 2, len(payment_method)))
+    else payment_method
+end payment_method ,
+case 
+    when amount < 0 then abs(amount)
+    else amount
+end amount
+ from bronze.payments
+
+SET @end_time = GETDATE();
+        PRINT '   - Success. Duration: ' + CAST(DATEDIFF(SECOND, @start_time, @end_time) AS VARCHAR) + ' seconds';
+
+
+
+ SET @start_time = GETDATE();
+print('>> truncate table silver.products')
+
+
+
+truncate table silver.products
+
+print('inserting data products')
+insert into silver.products
+(
+    product_id , 
+    product_name , 
+    category , 
+    price, 
+    stock_qty
+)
+
+select product_id,
+product_name,
+category , 
+replace(price , '$', '') price,
+abs(stock_qty) stock_qty
+ from bronze.products 
+
+SET @end_time = GETDATE();
+        PRINT '   - Success. Duration: ' + CAST(DATEDIFF(SECOND, @start_time, @end_time) AS VARCHAR) + ' seconds';
+
+end
+
+exec silver.load_silver
