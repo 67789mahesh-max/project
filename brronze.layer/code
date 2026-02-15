@@ -1,0 +1,222 @@
+/*
+===============================================================================
+    PROJECT: DATA WAREHOUSE - BRONZE LAYER
+    AUTHOR:  67789mahesh-max
+    PURPOSE: Create schemas, tables, and bulk load raw data (Medallion Arch)
+===============================================================================
+*/
+
+-------------------------------------------------------------------------------
+/*
+===============================================================================
+    RESET AND SETUP SCHEMAS
+    Purpose: Drops existing objects & schemas, then recreates them.
+    Warning: This deletes all data in these schemas.
+===============================================================================
+*/
+
+-------------------------------------------------------------------------------
+-- 1. CLEANUP OBJECTS (Must drop these before dropping schemas)
+-------------------------------------------------------------------------------
+
+-- Instead of dropping the whole schema (which is risky), we just ensure it exists.
+IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'bronze') EXEC('CREATE SCHEMA bronze');
+IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'silver') EXEC('CREATE SCHEMA silver');
+IF NOT EXISTS (SELECT * FROM sys.schemas WHERE name = 'gold')   EXEC('CREATE SCHEMA gold');
+GO
+-------------------------------------------------------------------------------
+-- 2. CREATE BRONZE TABLES (Raw Data Layer)
+-------------------------------------------------------------------------------
+
+-- Customer Table
+IF OBJECT_ID('bronze.customers', 'U') IS NOT NULL DROP TABLE bronze.customers;
+CREATE TABLE bronze.customers (
+    customer_id     INT,
+    name            VARCHAR(40),
+    email           VARCHAR(40),
+    phone           VARCHAR(40),
+    join_date       VARCHAR(40) 
+);
+GO
+
+-- Order Details Table
+IF OBJECT_ID('bronze.order_detail', 'U') IS NOT NULL DROP TABLE bronze.order_detail;
+CREATE TABLE bronze.order_detail (
+    detail_id       INT,
+    order_id        INT,
+    product_id      VARCHAR(50),
+    quantity        VARCHAR(40)
+);
+GO
+
+-- Orders Table
+IF OBJECT_ID('bronze.orders', 'U') IS NOT NULL DROP TABLE bronze.orders;
+CREATE TABLE bronze.orders (
+    order_id        INT,
+    customer_id     INT,
+    order_date      VARCHAR(40),
+    status          VARCHAR(40)
+);
+GO
+
+-- Payments Table
+IF OBJECT_ID('bronze.payments', 'U') IS NOT NULL DROP TABLE bronze.payments;
+CREATE TABLE bronze.payments (
+    payment_id      INT,
+    order_id        INT,
+    payment_method  VARCHAR(40),
+    amount          DECIMAL(10,2)
+);
+GO
+
+-- Products Table
+IF OBJECT_ID('bronze.products', 'U') IS NOT NULL DROP TABLE bronze.products;
+CREATE TABLE bronze.products (
+    product_id      VARCHAR(30),
+    product_name    VARCHAR(100),
+    category        VARCHAR(50),
+    price           VARCHAR(40),
+    stock_qty       INT
+);
+GO
+
+-------------------------------------------------------------------------------
+-- 3. CREATE LOADING PROCEDURE
+-------------------------------------------------------------------------------
+CREATE OR ALTER PROCEDURE bronze.load_bronze
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @start_time DATETIME, @end_time DATETIME, @batch_start DATETIME;
+
+    BEGIN TRY
+        SET @batch_start = GETDATE();
+        PRINT '===================================================';
+        PRINT '   STARTING BRONZE LAYER DATA LOAD';
+        PRINT '===================================================';
+
+        -- --------------------------------------------------------
+        -- LOAD: CUSTOMERS
+        -- --------------------------------------------------------
+        SET @start_time = GETDATE();
+        PRINT '>> Loading Table: bronze.customers';
+        
+        TRUNCATE TABLE bronze.customers;
+        BULK INSERT bronze.customers 
+        FROM 'C:\python\customers.csv'
+        WITH (
+            FIRSTROW = 2,
+            FIELDTERMINATOR = ',',
+            ROWTERMINATOR = '\n',
+            TABLOCK
+        );
+        
+        SET @end_time = GETDATE();
+        PRINT '   - Success. Duration: ' + CAST(DATEDIFF(SECOND, @start_time, @end_time) AS VARCHAR) + ' seconds';
+
+        -- --------------------------------------------------------
+        -- LOAD: ORDERS
+        -- --------------------------------------------------------
+        SET @start_time = GETDATE();
+        PRINT '>> Loading Table: bronze.orders';
+
+        TRUNCATE TABLE bronze.orders;
+        BULK INSERT bronze.orders 
+        FROM 'C:\python\orders.csv'
+        WITH (
+            FIRSTROW = 2,
+            FIELDTERMINATOR = ',',
+            ROWTERMINATOR = '\n',
+            TABLOCK
+        );
+
+        SET @end_time = GETDATE();
+        PRINT '   - Success. Duration: ' + CAST(DATEDIFF(SECOND, @start_time, @end_time) AS VARCHAR) + ' seconds';
+
+        -- --------------------------------------------------------
+        -- LOAD: ORDER_DETAIL
+        -- --------------------------------------------------------
+        SET @start_time = GETDATE();
+        PRINT '>> Loading Table: bronze.order_detail';
+
+        TRUNCATE TABLE bronze.order_detail;
+        BULK INSERT bronze.order_detail 
+        FROM 'C:\python\order_details.csv'
+        WITH (
+            FIRSTROW = 2,
+            FIELDTERMINATOR = ',',
+            ROWTERMINATOR = '\n',
+            TABLOCK
+        );
+
+        SET @end_time = GETDATE();
+        PRINT '   - Success. Duration: ' + CAST(DATEDIFF(SECOND, @start_time, @end_time) AS VARCHAR) + ' seconds';
+
+        -- --------------------------------------------------------
+        -- LOAD: PAYMENTS
+        -- --------------------------------------------------------
+        SET @start_time = GETDATE();
+        PRINT '>> Loading Table: bronze.payments';
+
+        TRUNCATE TABLE bronze.payments;
+        BULK INSERT bronze.payments 
+        FROM 'C:\python\payments.csv'
+        WITH (
+            FIRSTROW = 2,
+            FIELDTERMINATOR = ',',
+            ROWTERMINATOR = '\n',
+            TABLOCK
+        );
+
+        SET @end_time = GETDATE();
+        PRINT '   - Success. Duration: ' + CAST(DATEDIFF(SECOND, @start_time, @end_time) AS VARCHAR) + ' seconds';
+
+        -- --------------------------------------------------------
+        -- LOAD: PRODUCTS
+        -- --------------------------------------------------------
+        SET @start_time = GETDATE();
+        PRINT '>> Loading Table: bronze.products';
+
+        TRUNCATE TABLE bronze.products;
+        BULK INSERT bronze.products 
+        FROM 'C:\python\products.csv'
+        WITH (
+            FIRSTROW = 2,
+            FIELDTERMINATOR = ',',
+            ROWTERMINATOR = '\n',
+            TABLOCK
+        );
+
+        SET @end_time = GETDATE();
+        PRINT '   - Success. Duration: ' + CAST(DATEDIFF(SECOND, @start_time, @end_time) AS VARCHAR) + ' seconds';
+
+        -- --------------------------------------------------------
+        -- FINAL SUMMARY
+        -- --------------------------------------------------------
+        PRINT '===================================================';
+        PRINT '   LOAD COMPLETE';
+        PRINT '   Total Time: ' + CAST(DATEDIFF(SECOND, @batch_start, GETDATE()) AS VARCHAR) + ' seconds';
+        PRINT '===================================================';
+    
+    END TRY
+    BEGIN CATCH
+        PRINT '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!';
+        PRINT '   ERROR OCCURRED';
+        PRINT '   Message: ' + ERROR_MESSAGE();
+        PRINT '!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!';
+    END CATCH
+END;
+GO
+
+-------------------------------------------------------------------------------
+-- 4. EXECUTE & VERIFY
+-------------------------------------------------------------------------------
+EXEC bronze.load_bronze;
+GO
+
+SELECT * FROM bronze.customers;
+SELECT * FROM bronze.orders;
+SELECT * FROM bronze.order_detail;
+SELECT * FROM bronze.payments;
+SELECT * FROM bronze.products;
+GO
