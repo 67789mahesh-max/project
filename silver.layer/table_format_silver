@@ -1,0 +1,50 @@
+IF OBJECT_ID('silver.customers', 'U') IS NOT NULL DROP TABLE silver.customers;
+CREATE TABLE silver.customers (
+    customer_id     INT,
+    name            VARCHAR(40),
+    email           VARCHAR(40),
+    phone           VARCHAR(40),
+    join_date       DATE
+);
+GO
+
+-- Order Details Table
+IF OBJECT_ID('silver.order_detail', 'U') IS NOT NULL DROP TABLE silver.order_detail;
+CREATE TABLE silver.order_detail (
+    detail_id       INT,
+    order_id        INT,
+    product_id      VARCHAR(50),
+    quantity        INT
+);
+GO
+
+-- Orders Table
+IF OBJECT_ID('silver.orders', 'U') IS NOT NULL DROP TABLE silver.orders;
+CREATE TABLE silver.orders (
+    order_id        INT,
+    customer_id     INT,
+    order_date      date,
+    status          VARCHAR(40)
+);
+GO
+
+-- Payments Table
+IF OBJECT_ID('silver.payments', 'U') IS NOT NULL DROP TABLE silver.payments;
+CREATE TABLE silver.payments (
+    payment_id      INT,
+    order_id        INT,
+    payment_method  VARCHAR(40),
+    amount          DECIMAL(10,2)
+);
+GO
+
+-- Products Table
+IF OBJECT_ID('silver.products', 'U') IS NOT NULL DROP TABLE silver.products;
+CREATE TABLE silver.products (
+    product_id      VARCHAR(30),
+    product_name    VARCHAR(100),
+    category        VARCHAR(50),
+    price           DECIMAL(10,3),
+    stock_qty       INT
+);
+GO
